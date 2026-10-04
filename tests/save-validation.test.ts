@@ -56,6 +56,17 @@ describe('review regressions: reachable saved states',()=>{
     expect(manager.save(activeDoubled())).toMatchObject({ok:false,reason:'INVALID_STATE'});
     expect(store.get(SAVE_KEY)).toBe(before);
   });
+  it.each(['unsupported schema','missing RNG field'])('refuses outgoing %s without replacing valid bytes',(kind)=>{
+    const store=new MemoryStore();const manager=new SaveManager(store);
+    const state=manager.load().state;manager.save(state);
+    const before=store.get(SAVE_KEY);
+    const raw=kind==='unsupported schema' ? serialize(state).replace('"schemaVersion":1','"schemaVersion":2')
+      : serialize(state).replace(/"a":\d+,/,'');
+    const invalid: unknown=JSON.parse(raw);
+    expect(deserialize(raw).ok).toBe(false);
+    expect(Reflect.apply(manager.save,manager,[invalid])).toEqual({ok:false,reason:'INVALID_STATE'});
+    expect(store.get(SAVE_KEY)).toBe(before);
+  });
   it.each(['removed','corrupted'])('recovers a %s save key without losing the in-memory table',(mode)=>{
     const store=new MemoryStore();const manager=new SaveManager(store);
     const state=manager.load().state;manager.save(state);

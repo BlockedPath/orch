@@ -1,7 +1,6 @@
 import { createGame } from '../engine/game';
 import { deserialize, serialize } from '../engine/serialize';
 import type { GameState } from '../engine/types';
-import { assertInvariants } from '../engine/invariants';
 
 export const SAVE_KEY = 'blackjack.save.v1';
 export const CORRUPT_KEY = `${SAVE_KEY}.corrupt`;
@@ -56,7 +55,11 @@ export class SaveManager {
   }
 
   save(state: GameState): SaveResult {
-    try { assertInvariants(state); }
+    let encoded: string;
+    try {
+      encoded = serialize(state);
+      if (!deserialize(encoded).ok) return { ok: false, reason: 'INVALID_STATE' };
+    }
     catch { return { ok: false, reason: 'INVALID_STATE' }; }
     try {
       const raw = this.store.get(SAVE_KEY);
@@ -67,7 +70,7 @@ export class SaveManager {
         this.expectedSeq = stored.seq;
         return { ok: false, reason: 'STALE', current: stored };
       }
-      this.store.set(SAVE_KEY, `{"schemaVersion":1,"savedAt":${JSON.stringify(new Date().toISOString())},"state":${serialize(state)}}`);
+      this.store.set(SAVE_KEY, `{"schemaVersion":1,"savedAt":${JSON.stringify(new Date().toISOString())},"state":${encoded}}`);
       this.expectedSeq = state.seq;
       return { ok: true };
     } catch { return { ok: false, reason: 'UNAVAILABLE' }; }
