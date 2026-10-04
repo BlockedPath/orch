@@ -68,3 +68,8 @@
   - Checks: 104 tests and production build passing; all three exact `w4T:p7` saved repros now reject at first load. Historical test counts: 85 at `22e0849`, 87 at `593877f`.
   - Status: Fixes implemented; final independent verification and deployment pending.
   - Additional final-review fixes: animation completion focuses the neutral table so late/repeated Space does not hit; bankroll interpolation clamps at zero; every non-pending hand requires at least two cards. Failing-before focus and one-card regressions now pass. Suite: 107 tests; build clean.
+
+- **TASK-007-SOUND-EFFECTS**: User-requested sound effects and mute control.
+  - Scope: synthesized card/chip/shuffle/result cues, gesture-only audio startup, persistent mute, silent resume, cancellation, and browser audio verification.
+  - Checks: 116 tests and build pass; all nine cues render non-silent, unclipped audio in real Web Audio; browser verifies unlock, mute, preference persistence, silent resume, and mobile layout.
+  - Status: Implemented; focused review and publication pending.

@@ -4,6 +4,8 @@ import type { CardView, TableView } from '../engine/view';
 import type { Action, Card, ErrorCode, GameState, Outcome, Statistics, Suit } from '../engine/types';
 import { LocalStorageStore, SAVE_KEY, SaveManager } from '../persistence/save';
 import type { KeyValueStore } from '../persistence/save';
+import { actionSounds, settlementSound, TableAudio } from './audio';
+import type { SoundPlayer } from './audio';
 
 const symbols: Record<Suit, string> = { clubs: '♣', diamonds: '♦', hearts: '♥', spades: '♠' };
 const rankNames: Partial<Record<Card['rank'], string>> = { A: 'Ace', J: 'Jack', Q: 'Queen', K: 'King' };
@@ -62,8 +64,11 @@ export function motionDuration(reduced: boolean): number { return reduced ? 0 : 
 export function mountGame(options: {
   store?: KeyValueStore; fresh?: () => GameState; reducedMotion?: () => boolean;
   animate?: (before: TableView, after: TableView, duration: number) => Promise<void>;
+  sound?: SoundPlayer;
 } = {}): { destroy: () => void } {
-  const manager = new SaveManager(options.store ?? new LocalStorageStore(), options.fresh ?? (() => {
+  const storage = options.store ?? new LocalStorageStore();
+  const sound = options.sound ?? new TableAudio(storage);
+  const manager = new SaveManager(storage, options.fresh ?? (() => {
     const seed = new Uint32Array(1);
     window.crypto.getRandomValues(seed);
     return createGame({ seed: seed[0] ?? 1 });
@@ -89,6 +94,7 @@ export function mountGame(options: {
   const announcements = element('card-announcements', HTMLElement);
   const skip = element('skip-animation', HTMLButtonElement);
   const table = element('game-table', HTMLElement);
+  const soundButton = element('sound-toggle', HTMLButtonElement);
   const rulesDialog = element('rules-dialog', HTMLDialogElement);
   const statsDialog = element('stats-dialog', HTMLDialogElement);
   const buttons = {
@@ -109,9 +115,15 @@ export function mountGame(options: {
     target.addEventListener(event, listener);
     cleanup.push(() => target.removeEventListener(event, listener));
   }
+  function renderSound(): void {
+    soundButton.disabled = !sound.supported;
+    soundButton.textContent = sound.supported ? `Sound: ${sound.enabled ? 'on' : 'off'}` : 'Sound unavailable';
+    soundButton.setAttribute('aria-pressed', String(sound.enabled && sound.supported));
+  }
   function render(): void {
     const view = selectView(state);
     const legal = view.legal;
+    renderSound();
     bankroll.textContent = format(view.bankroll);
     skip.hidden = !busy;
     bet.max = String(Math.max(10, view.maxBet));
@@ -216,6 +228,7 @@ export function mountGame(options: {
   }
   function skipAnimation(): void {
     if (!busy) return;
+    sound.stop();
     for (const animation of document.getAnimations?.() ?? []) animation.finish();
     finishAnimation?.();
   }
@@ -226,6 +239,7 @@ export function mountGame(options: {
     if (!result.ok) { error.textContent = messages[result.error]; return; }
     const saved = manager.save(result.state);
     if (!saved.ok && saved.reason === 'STALE') {
+      sound.stop();
       state = saved.current;
       notice.textContent = 'Another tab changed the table. The latest saved table has been loaded.';
       wager = Math.max(10, Math.min(state.lastBet ?? wager, selectView(state).maxBet));
@@ -240,6 +254,8 @@ export function mountGame(options: {
     state = result.state;
     if (action.type === 'NEW_ROUND' || action.type === 'RELOAD_BANKROLL') wager = Math.max(10,Math.min(state.lastBet ?? 10,selectView(state).maxBet));
     error.textContent = '';
+    sound.stop();
+    for (const effect of actionSounds(action.type, result.events)) sound.play(effect.cue, effect.delay);
     const hasCards = result.events.some((event)=>event.type === 'CARD_DEALT' || event.type === 'HOLE_REVEALED');
     const duration = motionDuration((options.reducedMotion ?? (()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches))());
     busy = hasCards;
@@ -256,6 +272,8 @@ export function mountGame(options: {
         busy = false;
         finishAnimation = null;
         render();
+        const cue = settlementSound(result.events);
+        if (cue) sound.play(cue);
         announcements.textContent = result.events.map((event) => {
           if (event.type === 'CARD_DEALT') return `${event.target === 'dealer' ? 'Dealer' : `Hand ${event.handIndex + 1}`} receives ${cardName(event.card)}.`;
           if (event.type === 'HOLE_DEALT') return 'Dealer receives a face-down card.';
@@ -277,10 +295,15 @@ export function mountGame(options: {
     [buttons.newRound,()=>({type:'NEW_ROUND'})],[buttons.reset,()=>({type:'RELOAD_BANKROLL'})],
   ];
   for (const [button, action] of actions) listen(button,'click',()=>{void dispatch(action());});
+  listen(soundButton, 'click', () => {
+    sound.setEnabled(!sound.enabled);
+    if (sound.enabled) sound.play('chip');
+    renderSound();
+  });
   listen(skip, 'click', skipAnimation);
   listen(table, 'click', skipAnimation);
-  listen(bet,'input',()=>{if(!busy && selectView(state).legal.deal) {wager=Number(bet.value);render();}});
-  for(const chip of chips) listen(chip,'click',()=>{if(!chip.disabled) {wager=Number(chip.dataset.bet);render();}});
+  listen(bet,'input',()=>{if(!busy && selectView(state).legal.deal) {wager=Number(bet.value);sound.stop();sound.play('chip');render();}});
+  for(const chip of chips) listen(chip,'click',()=>{if(!chip.disabled) {wager=Number(chip.dataset.bet);sound.stop();sound.play('chip');render();}});
   for(const [dialog,openId,closeId] of [[rulesDialog,'rules-open','rules-close'],[statsDialog,'stats-open','stats-close']] as const) {
     listen(element(openId,HTMLButtonElement),'click',()=>dialog.showModal());
     listen(element(closeId,HTMLButtonElement),'click',()=>dialog.close());
@@ -299,6 +322,7 @@ export function mountGame(options: {
     if(!(event instanceof StorageEvent) || event.key!==SAVE_KEY || !event.newValue) return;
     const newer=manager.adopt(event.newValue);
     if(newer) {
+      sound.stop();
       generation+=1;
       finishAnimation?.();
       finishAnimation = null;
@@ -310,6 +334,7 @@ export function mountGame(options: {
       render();
     }
   });
+  listen(document, 'visibilitychange', () => { if (document.hidden) sound.stop(); });
   render();
-  return {destroy:()=>{generation+=1;finishAnimation?.();finishAnimation=null;for(const remove of cleanup) remove();}};
+  return {destroy:()=>{generation+=1;sound.dispose();finishAnimation?.();finishAnimation=null;for(const remove of cleanup) remove();}};
 }

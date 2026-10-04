@@ -49,6 +49,8 @@ Use native buttons or D to deal, H to hit, S to stand, 2 or X to double, P to sp
 
 Press Space, use Skip animation, or tap the table while cards are in motion to finish the animation without another move. Reduced motion uses zero duration. Four hands wrap into two columns on mobile. Rules and statistics use native dialogs.
 
+Card swishes, chip clicks, shuffling, and result chimes start on your first interaction. The Sound toggle mutes immediately and remembers your choice separately from the saved game. Restoring a table never replays its sounds.
+
 The dealer stands on all 17s and checks for blackjack before extra double or split wagers. Split identical ranks up to four hands. Split aces receive one card each and automatically stand without resplitting. Split 21 pays 1:1. Insurance, even money, surrender, and side bets are not offered.
 
 See [SPECIFICATION.md](SPECIFICATION.md) for the rules and [TEST_FIXTURES.md](TEST_FIXTURES.md) for test scenarios.

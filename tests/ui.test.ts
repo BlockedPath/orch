@@ -5,6 +5,7 @@ import { applyAction, createGame } from '../src/engine/game';
 import { mountGame, motionDuration } from '../src/ui/table';
 import { LocalStorageStore, MemoryStore, readSave, SAVE_KEY } from '../src/persistence/save';
 import { act, stack } from './fixtures';
+import type { SoundPlayer } from '../src/ui/audio';
 
 const source=stack(['8S','10H','8D','7C','3H','10D','9C']);
 let destroy: (()=>void) | undefined;
@@ -26,6 +27,29 @@ beforeEach(()=>{
 afterEach(()=>{destroy?.();destroy=undefined;vi.restoreAllMocks();});
 
 describe('UI controller and persistence boundary',()=>{
+  it('plays accepted moves, stays silent on resume, and toggles sound without replacing cards',async()=>{
+    let enabled=true;
+    const sound:SoundPlayer={get enabled(){return enabled;},supported:true,
+      setEnabled:vi.fn((value:boolean)=>{enabled=value;}),play:vi.fn(),stop:vi.fn(),dispose:vi.fn()};
+    const store=new MemoryStore();
+    const state=act(createGame({cards:source}),{type:'DEAL',bet:100});
+    store.set(SAVE_KEY,JSON.stringify({schemaVersion:1,savedAt:'now',state}));
+    destroy=mountGame({store,sound,reducedMotion:()=>true}).destroy;
+    expect(sound.play).not.toHaveBeenCalled();
+    button('deal').click();
+    expect(sound.play).not.toHaveBeenCalled();
+    const card=document.querySelector('.card');
+    await click('sound-toggle');
+    expect(sound.setEnabled).toHaveBeenCalledWith(false);
+    expect(button('sound-toggle').getAttribute('aria-pressed')).toBe('false');
+    expect(document.querySelector('.card')).toBe(card);
+    await click('sound-toggle');
+    expect(sound.play).toHaveBeenCalledWith('chip');
+    await click('stand');
+    await vi.waitFor(()=>expect(sound.play).toHaveBeenCalledWith('loss'));
+    destroy();destroy=undefined;
+    expect(sound.dispose).toHaveBeenCalledOnce();
+  });
   it('renders split hands, DAS, per-hand results, and stats from selectView',async()=>{
     destroy=mountGame({store:new MemoryStore(),fresh:()=>createGame({cards:source}),reducedMotion:()=>true}).destroy;
     button('deal').click();await Promise.resolve();await Promise.resolve();

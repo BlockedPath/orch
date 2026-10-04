@@ -60,8 +60,8 @@ button:not(:disabled):hover { filter: brightness(1.15); }
 .rules h2 { color: #e5d29b; }
 .rules ul { padding-left: 20px; }
 footer { text-align: center; margin-top: 18px; font-size: .6rem; letter-spacing: .08em; color: #aebfad; }
-.table-nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; font-size: .65rem; color: #c2d0bd; }
-.table-nav > div { display: flex; gap: 14px; }
+.table-nav { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; font-size: .65rem; color: #c2d0bd; }
+.table-nav > div { display: flex; flex-wrap: wrap; gap: 14px; margin-left: auto; }
 .table-nav button { padding: 8px 0; color: #ead398; background: transparent; border: 0; border-bottom: 1px solid #b7a46b77; font-size: .7rem; }
 .save-notice { color: #e9d69e; font-size: .74rem; line-height: 1.5; min-height: 0; margin: 8px 0; }
 .save-notice:empty { display: none; }

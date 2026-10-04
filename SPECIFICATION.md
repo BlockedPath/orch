@@ -132,3 +132,7 @@ The original handoff did not define S15, S23, or S24. No additional rules are in
 ## Verification
 
 `npm test`, `npm run typecheck`, and `npm run build` must pass. Run the production browser smoke script against freshly built output. It exercises DAS, four hands, split aces, exact split and settled resume, mid-animation reload, input locks, keyboard actions, and dialogs. Review regressions additionally cover impossible saved states and storage recovery.
+
+## Sound effects
+
+User-requested sound effects extend the original scope. Accepted game events trigger card, chip, reveal, shuffle, and result sounds through Web Audio. The first interaction unlocks playback; page load and restored rounds remain silent. Mute stops current and queued sounds and persists under `blackjack.sound.v1`, separately from the game. Skipping animation, adopting another tab's state, hiding the tab, and disposing the controller cancel pending effects. Audio or preference-storage failures do not interrupt play.

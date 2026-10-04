@@ -16,7 +16,7 @@
       </header>
       <nav class="table-nav" aria-label="Table information">
         <span id="shoe-status">Six-deck shoe</span>
-        <div><button type="button" id="rules-open">House rules</button><button type="button" id="stats-open">Statistics</button></div>
+        <div><button type="button" id="sound-toggle" aria-label="Sound effects" aria-pressed="true">Sound: on</button><button type="button" id="rules-open">House rules</button><button type="button" id="stats-open">Statistics</button></div>
       </nav>
       <p id="save-notice" class="save-notice" role="status" aria-live="polite"></p>
       <p id="card-announcements" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -77,6 +77,7 @@
           </ul>
           <p>No insurance, even money, surrender, or side bets in v1. Chips are for play.</p>
           <p>Your table is saved after each move. Reloading resumes the same round. If storage is unavailable, a notice appears.</p>
+          <p>Sound effects start when you interact with the table. Use Sound to mute or unmute; your choice is remembered.</p>
         </div>
       </dialog>
       <dialog id="stats-dialog" aria-labelledby="stats-title">
