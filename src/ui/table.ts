@@ -5,7 +5,7 @@ import type { Action, Card, ErrorCode, GameState, Outcome, Statistics, Suit } fr
 import { LocalStorageStore, SAVE_KEY, SaveManager } from '../persistence/save';
 import type { KeyValueStore } from '../persistence/save';
 import { actionSounds, settlementSound, TableAudio } from './audio';
-import type { SoundPlayer } from './audio';
+import type { SoundCue, SoundPlayer } from './audio';
 
 const symbols: Record<Suit, string> = { clubs: '♣', diamonds: '♦', hearts: '♥', spades: '♠' };
 const rankNames: Partial<Record<Card['rank'], string>> = { A: 'Ace', J: 'Jack', Q: 'Queen', K: 'King' };
@@ -79,6 +79,7 @@ export function mountGame(options: {
   let busy = false;
   let generation = 0;
   let finishAnimation: (() => void) | null = null;
+  let pendingSettlementSound: SoundCue | null = null;
   const cleanup: (() => void)[] = [];
   const bankroll = element('bankroll', HTMLElement);
   const bet = element('bet', HTMLInputElement);
@@ -119,6 +120,10 @@ export function mountGame(options: {
     soundButton.disabled = !sound.supported;
     soundButton.textContent = sound.supported ? `Sound: ${sound.enabled ? 'on' : 'off'}` : 'Sound unavailable';
     soundButton.setAttribute('aria-pressed', String(sound.enabled && sound.supported));
+  }
+  function cancelSounds(): void {
+    pendingSettlementSound = null;
+    sound.stop();
   }
   function render(): void {
     const view = selectView(state);
@@ -228,7 +233,7 @@ export function mountGame(options: {
   }
   function skipAnimation(): void {
     if (!busy) return;
-    sound.stop();
+    cancelSounds();
     for (const animation of document.getAnimations?.() ?? []) animation.finish();
     finishAnimation?.();
   }
@@ -239,7 +244,7 @@ export function mountGame(options: {
     if (!result.ok) { error.textContent = messages[result.error]; return; }
     const saved = manager.save(result.state);
     if (!saved.ok && saved.reason === 'STALE') {
-      sound.stop();
+      cancelSounds();
       state = saved.current;
       notice.textContent = 'Another tab changed the table. The latest saved table has been loaded.';
       wager = Math.max(10, Math.min(state.lastBet ?? wager, selectView(state).maxBet));
@@ -254,7 +259,8 @@ export function mountGame(options: {
     state = result.state;
     if (action.type === 'NEW_ROUND' || action.type === 'RELOAD_BANKROLL') wager = Math.max(10,Math.min(state.lastBet ?? 10,selectView(state).maxBet));
     error.textContent = '';
-    sound.stop();
+    cancelSounds();
+    pendingSettlementSound = settlementSound(result.events);
     for (const effect of actionSounds(action.type, result.events)) sound.play(effect.cue, effect.delay);
     const hasCards = result.events.some((event)=>event.type === 'CARD_DEALT' || event.type === 'HOLE_REVEALED');
     const duration = motionDuration((options.reducedMotion ?? (()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches))());
@@ -272,7 +278,8 @@ export function mountGame(options: {
         busy = false;
         finishAnimation = null;
         render();
-        const cue = settlementSound(result.events);
+        const cue = pendingSettlementSound;
+        pendingSettlementSound = null;
         if (cue) sound.play(cue);
         announcements.textContent = result.events.map((event) => {
           if (event.type === 'CARD_DEALT') return `${event.target === 'dealer' ? 'Dealer' : `Hand ${event.handIndex + 1}`} receives ${cardName(event.card)}.`;
@@ -296,14 +303,15 @@ export function mountGame(options: {
   ];
   for (const [button, action] of actions) listen(button,'click',()=>{void dispatch(action());});
   listen(soundButton, 'click', () => {
+    cancelSounds();
     sound.setEnabled(!sound.enabled);
     if (sound.enabled) sound.play('chip');
     renderSound();
   });
   listen(skip, 'click', skipAnimation);
   listen(table, 'click', skipAnimation);
-  listen(bet,'input',()=>{if(!busy && selectView(state).legal.deal) {wager=Number(bet.value);sound.stop();sound.play('chip');render();}});
-  for(const chip of chips) listen(chip,'click',()=>{if(!chip.disabled) {wager=Number(chip.dataset.bet);sound.stop();sound.play('chip');render();}});
+  listen(bet,'input',()=>{if(!busy && selectView(state).legal.deal) {wager=Number(bet.value);cancelSounds();sound.play('chip');render();}});
+  for(const chip of chips) listen(chip,'click',()=>{if(!chip.disabled) {wager=Number(chip.dataset.bet);cancelSounds();sound.play('chip');render();}});
   for(const [dialog,openId,closeId] of [[rulesDialog,'rules-open','rules-close'],[statsDialog,'stats-open','stats-close']] as const) {
     listen(element(openId,HTMLButtonElement),'click',()=>dialog.showModal());
     listen(element(closeId,HTMLButtonElement),'click',()=>dialog.close());
@@ -322,7 +330,7 @@ export function mountGame(options: {
     if(!(event instanceof StorageEvent) || event.key!==SAVE_KEY || !event.newValue) return;
     const newer=manager.adopt(event.newValue);
     if(newer) {
-      sound.stop();
+      cancelSounds();
       generation+=1;
       finishAnimation?.();
       finishAnimation = null;
@@ -334,7 +342,7 @@ export function mountGame(options: {
       render();
     }
   });
-  listen(document, 'visibilitychange', () => { if (document.hidden) sound.stop(); });
+  listen(document, 'visibilitychange', () => { if (document.hidden) cancelSounds(); });
   render();
   return {destroy:()=>{generation+=1;sound.dispose();finishAnimation?.();finishAnimation=null;for(const remove of cleanup) remove();}};
 }

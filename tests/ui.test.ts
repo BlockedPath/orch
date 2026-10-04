@@ -50,6 +50,18 @@ describe('UI controller and persistence boundary',()=>{
     destroy();destroy=undefined;
     expect(sound.dispose).toHaveBeenCalledOnce();
   });
+  it('skipping an animation also cancels its deferred result sound',async()=>{
+    const sound:SoundPlayer={enabled:true,supported:true,setEnabled:vi.fn(),play:vi.fn(),stop:vi.fn(),dispose:vi.fn()};
+    const store=new MemoryStore();
+    const state=act(createGame({cards:stack(['10S','10H','8D','7C'])}),{type:'DEAL',bet:100});
+    store.set(SAVE_KEY,JSON.stringify({schemaVersion:1,savedAt:'now',state}));
+    destroy=mountGame({store,sound,reducedMotion:()=>false,animate:()=>new Promise<void>(()=>{})}).destroy;
+    button('stand').click();
+    expect(sound.play).toHaveBeenCalledWith('reveal',0.035);
+    button('skip-animation').click();
+    await vi.waitFor(()=>expect(button('new-round').disabled).toBe(false));
+    expect(sound.play).not.toHaveBeenCalledWith('win');
+  });
   it('renders split hands, DAS, per-hand results, and stats from selectView',async()=>{
     destroy=mountGame({store:new MemoryStore(),fresh:()=>createGame({cards:source}),reducedMotion:()=>true}).destroy;
     button('deal').click();await Promise.resolve();await Promise.resolve();
