@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#103e32" />
+    <title>The Green Room · Blackjack</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='30'%3E♠%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="casino">
+      <header class="masthead">
+        <div><p class="eyebrow">The Green Room</p><h1>Blackjack<span aria-hidden="true">♠</span></h1></div>
+        <div class="bank"><span>Bankroll</span><strong id="bankroll">1,000</strong><small>chips</small></div>
+      </header>
+      <nav class="table-nav" aria-label="Table information">
+        <span id="shoe-status">Six-deck shoe</span>
+        <div><button type="button" id="rules-open">House rules</button><button type="button" id="stats-open">Statistics</button></div>
+      </nav>
+      <p id="save-notice" class="save-notice" role="status" aria-live="polite"></p>
+      <div class="table">
+        <section class="hand-area" aria-labelledby="dealer-heading">
+          <div class="hand-heading"><h2 id="dealer-heading">Dealer</h2><span class="total" id="dealer-total">—</span></div>
+          <div class="cards" id="dealer-cards" aria-label="Dealer cards"></div>
+        </section>
+        <div class="table-mark" aria-hidden="true"><span>BLACKJACK PAYS 3 TO 2</span><small>DEALER STANDS ON ALL 17s</small></div>
+        <div class="banner" id="outcome" role="status" aria-live="polite" aria-atomic="true">
+          <strong>Take a seat.</strong><span>Choose your wager, then deal the cards.</span>
+        </div>
+        <section class="player" aria-labelledby="player-heading">
+          <h2 id="player-heading" class="player-heading">Your hands</h2>
+          <div id="player-hands" class="player-hands"></div>
+        </section>
+      </div>
+      <section class="controls" aria-label="Game controls">
+        <div class="wager-row">
+          <div class="wager-label"><label for="bet">Your wager</label><strong><span id="bet-value">10</span> <small>chips</small></strong></div>
+          <input id="bet" type="range" min="10" max="500" step="10" value="10" aria-describedby="bet-help" />
+          <div class="chips" aria-label="Quick wager choices">
+            <button type="button" data-bet="10">10</button><button type="button" data-bet="50">50</button>
+            <button type="button" data-bet="100">100</button><button type="button" data-bet="500">500</button>
+          </div>
+        </div>
+        <p class="hint" id="bet-help">Table limits: 10–500 chips · increments of 10</p>
+        <div class="actions">
+          <button type="button" id="deal" class="primary" aria-keyshortcuts="D">Deal</button>
+          <button type="button" id="hit" aria-keyshortcuts="H">Hit</button>
+          <button type="button" id="stand" aria-keyshortcuts="S">Stand</button>
+          <button type="button" id="double" aria-keyshortcuts="2 X">Double</button>
+          <button type="button" id="split" aria-keyshortcuts="P">Split</button>
+          <button type="button" id="new-round" class="primary" aria-keyshortcuts="N">New Round</button>
+          <button type="button" id="reset" aria-keyshortcuts="R">Reset Bankroll</button>
+        </div>
+        <p class="hint shortcuts">D Deal · H Hit · S Stand · 2/X Double · P Split · N New Round · R Reset</p>
+        <p id="error" role="alert"></p>
+      </section>
+      <dialog id="rules-dialog" aria-labelledby="rules-title">
+        <div class="dialog-heading"><h2 id="rules-title">House rules</h2><button type="button" id="rules-close" aria-label="Close house rules">Close</button></div>
+        <div class="rules">
+          <p>Get closer to 21 than the dealer without going over. Hit to draw a card; stand to keep your total.</p>
+          <ul>
+            <li>Six decks. Aces count as 1 or 11; face cards count as 10.</li>
+            <li>An unsplit two-card blackjack pays 3:2. Other wins pay 1:1. A tie returns your stake.</li>
+            <li>The dealer checks for blackjack when showing an Ace or a ten-value card, before you play.</li>
+            <li>The dealer hits below 17 and stands on every 17, including soft 17. A player total of 21 automatically stands.</li>
+            <li>Double Down on your first two cards, including after a non-ace split, if you can cover another equal wager. Receive exactly one card, then automatically stand. A doubled wager may exceed the 500-chip initial bet limit.</li>
+            <li>Split identical ranks into separate hands with an extra equal wager. Resplit up to four hands. Play each hand in order. Cards with different ranks cannot split, even when both are worth 10.</li>
+            <li>Split aces get exactly one new card each and automatically stand. No hit, double, or resplit. Any split 21 pays 1:1, not the natural blackjack rate.</li>
+            <li>Each hand settles independently. A bust loses its wager even if the dealer busts. If all hands bust, the dealer reveals but draws no more cards.</li>
+            <li>Bet 10–500 chips in increments of 10, up to your available bankroll.</li>
+            <li>The shoe reshuffles between rounds after 75% of its cards have been dealt.</li>
+            <li>If your bankroll falls below 10, start a New Round, then use Reset Bankroll to reload 1,000 chips. Your statistics are kept.</li>
+          </ul>
+          <p>No insurance, even money, surrender, or side bets in v1. Chips are for play.</p>
+          <p>Your table is saved after each move. Reloading resumes the same round. If storage is unavailable, a notice appears.</p>
+        </div>
+      </dialog>
+      <dialog id="stats-dialog" aria-labelledby="stats-title">
+        <div class="dialog-heading"><h2 id="stats-title">Your statistics</h2><button type="button" id="stats-close" aria-label="Close statistics">Close</button></div>
+        <dl id="stats-values" class="stats-grid"></dl>
+      </dialog>
+      <footer>Single player · Six decks · Play chips</footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
