@@ -18,10 +18,9 @@ describe('purity, shuffle, and invariant verification', () => {
   it('has a stable seed golden shoe and uint32 rejection sampling', () => {
     expect(shuffledShoe(seedRng(42))).toEqual(shuffledShoe(seedRng(42)));
     expect(shuffledShoe(seedRng(42)).shoe.cards.slice(0,8).map((card)=>card.id)).toEqual([89,133,77,285,112,31,305,188]);
-    const rejectRng={a:0xffffffff,b:0,c:0,d:0};
-    // The first value is outside the bound-3 acceptance range; the next value is one.
-    expect(nextInt(rejectRng,3).value).toBe(1);
-    expect(nextInt(rejectRng,3).rng.d).toBe(2);
+    const rejectionBoundaryRng={a:0xffffffff,b:0,c:0,d:0};
+    expect(nextInt(rejectionBoundaryRng,3).value).toBe(1);
+    expect(nextInt(rejectionBoundaryRng,3).rng.d).toBe(2);
   });
   it('20,000 seeded rounds preserve invariants and round-trip every accepted snapshot', () => {
     let state=createGame({seed:42});

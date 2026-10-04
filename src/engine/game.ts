@@ -37,7 +37,7 @@ export function getLegalActions(state: GameState) {
     : state.bankroll < hand.wager ? 'INSUFFICIENT_FUNDS' : null;
   return {
     deal: state.phase === 'BETTING' && state.bankroll >= MIN_BET ? { min: MIN_BET, max: maxBet(state.bankroll), step: 10 } : null,
-    hit: player, stand: player,
+    hit: player && !hand?.splitAces, stand: player,
     double: { allowed: doubleReason === null, reason: doubleReason },
     split: { allowed: splitReason === null, reason: splitReason },
     newRound: state.phase === 'ROUND_OVER', reload: state.phase === 'BETTING' && state.bankroll < MIN_BET,
@@ -46,6 +46,8 @@ export function getLegalActions(state: GameState) {
 
 function parseAction(input: unknown): Action | null {
   if (typeof input !== 'object' || input === null || !('type' in input)) return null;
+  const allowedKeys = input.type === 'DEAL' ? ['type', 'bet'] : ['type'];
+  if (Object.keys(input).some((key) => !allowedKeys.includes(key))) return null;
   switch (input.type) {
     case 'DEAL': return { type: 'DEAL', bet: 'bet' in input && typeof input.bet === 'number' ? input.bet : NaN };
     case 'HIT': case 'STAND': case 'DOUBLE': case 'SPLIT': case 'NEW_ROUND': case 'RELOAD_BANKROLL': return { type: input.type };
@@ -139,7 +141,7 @@ export function applyAction(state: GameState, input: unknown): ActionResult {
       wins: stats.wins + settlements.filter((item) => item.outcome === 'WIN' || item.outcome === 'BLACKJACK').length,
       losses: stats.losses + settlements.filter((item) => item.outcome === 'LOSS' || item.outcome === 'BUST').length,
       pushes: stats.pushes + settlements.filter((item) => item.outcome === 'PUSH').length,
-      naturals: stats.naturals + settlements.filter((item) => item.outcome === 'BLACKJACK').length,
+      naturals: stats.naturals + round.hands.filter((hand) => evaluateHand(hand).isBlackjack).length,
       totalWagered: stats.totalWagered + settlements.reduce((sum, item) => sum + item.wager, 0),
       netProfit: stats.netProfit + net, biggestWin: Math.max(stats.biggestWin, net), peakBankroll: Math.max(stats.peakBankroll, bankroll) };
     events.push({ type: 'SETTLED', settlements }, { type: 'PHASE', phase: 'ROUND_OVER' });
@@ -195,6 +197,7 @@ export function applyAction(state: GameState, input: unknown): ActionResult {
     if (!hand) throw new Error('Invariant: missing active hand.');
     switch (action.type) {
       case 'HIT': {
+        if (hand.splitAces) return reject(state, 'ILLEGAL_PHASE');
         takePlayerCard(index);
         const hit = round.hands[index];
         if (!hit) throw new Error('Invariant: missing hit hand.');

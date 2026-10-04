@@ -2,7 +2,6 @@ import { applyAction, createGame } from '../src/engine/game';
 import { canonicalCards } from '../src/engine/shoe';
 import type { Action, Card, GameState, Rank, Suit } from '../src/engine/types';
 
-// Deal order: player, dealer upcard, player, dealer hole, then draws.
 export function cards(...ranks: Rank[]): Card[] {
   return stack(ranks.map((rank) => `${rank}S`));
 }

@@ -108,4 +108,10 @@ describe('Double down, splits, and multi-hand settlement', () => {
     }
     expect(over.stats.rounds).toBe(1);
   });
+  it('G3 rejects actions targeting a non-active hand', () => {
+    const state=act(deal(cards('8','10','8','7','3')),{type:'SPLIT'});
+    const result=applyAction(state,{type:'HIT',handIndex:1});
+    expect(result).toMatchObject({ok:false,error:'UNKNOWN_ACTION',events:[]});
+    expect(result.state).toBe(state);
+  });
 });

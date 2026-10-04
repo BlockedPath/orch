@@ -25,7 +25,7 @@ export function assertInvariants(state: GameState): void {
     requireInvariant(Number.isSafeInteger(value) && (key === 'netProfit' || value >= 0), 'Invalid statistics.');
   }
   const stats = state.stats;
-  requireInvariant(stats.hands === stats.wins + stats.losses + stats.pushes && stats.naturals <= stats.wins
+  requireInvariant(stats.hands === stats.wins + stats.losses + stats.pushes && stats.naturals <= stats.hands
     && stats.rounds <= stats.hands && stats.peakBankroll >= state.bankroll, 'Statistics totals disagree.');
   if (state.phase === 'BETTING') {
     requireInvariant(state.round === null && state.shoe.position < CUT_CARD_POSITION, 'Invalid betting state.');

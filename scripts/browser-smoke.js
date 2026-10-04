@@ -1,99 +1,106 @@
 async (page) => {
-  const assert = (condition, message) => {
-    if (!condition) throw new Error(message);
-  };
-  const failures = [];
-  page.on('pageerror', (error) => failures.push(error.message));
-  page.on('console', (message) => {
-    if (message.type() === 'error') failures.push(message.text());
-  });
-  await page.addInitScript(() => {
-    let seed = 42;
-    Math.random = () => {
-      seed = (seed + 0x6d2b79f5) >>> 0;
-      let value = Math.imul(seed ^ (seed >>> 15), seed | 1);
-      value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-    };
-  });
-  await page.reload();
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  const bankroll = async () => Number((await page.locator('#bankroll').innerText()).replaceAll(',', ''));
-  assert(await bankroll() === 1000, 'Initial bankroll');
-  for (const id of ['hit', 'stand', 'new-round', 'reset']) {
-    assert(await page.locator(`#${id}`).isDisabled(), `${id} must be disabled before deal`);
+  const assert = (condition, message) => { if (!condition) throw new Error(message); };
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.goto('http://127.0.0.1:4173');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const idle = () => page.waitForFunction(() => ['deal','hit','new-round','reset'].some((id) => !document.getElementById(id).disabled));
+  const bank = async () => Number((await page.locator('#bankroll').innerText()).replaceAll(',', ''));
+  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('blackjack.save.v1')).state);
+  const key = async (value) => { await page.keyboard.press(value); await idle(); };
+  async function fixture(tokens, bankroll = 1000) {
+    await page.evaluate(({tokens,bankroll}) => {
+      const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+      const suits = ['clubs','diamonds','hearts','spades'];
+      const pool = [];
+      for(let deck=0;deck<6;deck+=1) for(const suit of suits) for(const rank of ranks) pool.push({id:pool.length,rank,suit});
+      const named = {S:'spades',H:'hearts',D:'diamonds',C:'clubs'};
+      const prefix = tokens.map((token) => {
+        const index = pool.findIndex((card) => card.rank === token.slice(0,-1) && card.suit === named[token.slice(-1)]);
+        if(index<0) throw new Error('Fixture card missing');
+        return pool.splice(index,1)[0];
+      });
+      const state = {schemaVersion:1,seq:0,phase:'BETTING',round:null,bankroll,lastBet:100,
+        shoe:{cards:[...prefix,...pool],position:0},rng:{a:42,b:0x9e3779b9,c:0x243f6a88,d:1},
+        stats:{rounds:0,hands:0,wins:0,losses:0,pushes:0,naturals:0,doubles:0,splits:0,totalWagered:0,
+          netProfit:0,biggestWin:0,peakBankroll:1000,reloads:0}};
+      localStorage.setItem('blackjack.save.v1',JSON.stringify({schemaVersion:1,savedAt:new Date().toISOString(),state}));
+    }, {tokens,bankroll});
+    await page.reload();
+    await idle();
+    await page.locator('#deal').focus();
   }
+  await page.setViewportSize({width:1440,height:1100});
+  await fixture(['8S','10H','8D','7C','3H','10D','9C']);
+  await key('d');
+  assert(await bank()===900,'Deal deducts once');
+  assert(await page.getByRole('img',{name:'Face-down card',exact:true}).count()===1,'Hole card hidden');
+  assert(await page.locator('#dealer-total').innerText()==='Showing 10','Only upcard total is shown');
+  await key('p');
+  assert(await page.locator('.player-hand').count()===2,'Split creates two hands');
+  assert(await bank()===800,'Split adds equal wager');
+  const beforeReload=await saved();
+  await page.reload();await idle();
+  assert(JSON.stringify(await saved())===JSON.stringify(beforeReload),'Reload preserves exact split round');
+  await key('2');
+  assert(await bank()===700,'DAS deducts one equal wager');
+  assert(await page.locator('.doubled-badge').count()===1,'Doubled badge');
+  assert((await page.locator('.player-hand.active').getAttribute('aria-label')).includes('Hand 2'),'Next split hand active');
+  await page.screenshot({path:'output/playwright/desktop-das.png',fullPage:true});
+  await key('s');
+  assert(await bank()===1200,'S16 settles to 1200');
+  assert(await page.locator('.hand-settlement').count()===2,'Per-hand settlements visible');
+  assert(await page.getByRole('img',{name:'Face-down card',exact:true}).count()===0,'Hole revealed');
+  await page.reload();await idle();
+  assert(await bank()===1200,'Settled reload never pays twice');
+  await page.locator('#stats-open').click();
+  const stats=await page.locator('#stats-values').innerText();
+  assert(stats.includes('Net profit\n200') && stats.includes('Doubles\n1'),'Exact stats displayed');
+  await page.screenshot({path:'output/playwright/desktop-stats.png',fullPage:true});
+  await page.locator('#stats-close').click();
+  await fixture(['8S','10H','8D','7C','8H','8C','8S','10S','10D','10C']);
+  await key('d');
+  await key('p');await key('p');await key('p');
+  assert(await page.locator('.player-hand').count()===4,'Four split hands');
+  assert(await page.locator('#split').isDisabled(),'Fifth hand prohibited');
+  await page.setViewportSize({width:360,height:800});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Four hands fit mobile without overflow');
+  await page.screenshot({path:'output/playwright/mobile-four-hands.png',fullPage:true});
+  await page.setViewportSize({width:1440,height:1100});
+  await page.screenshot({path:'output/playwright/desktop-four-hands.png',fullPage:true});
+  for(let count=0;count<4;count+=1) await key('s');
+  assert(await bank()===1200,'S19 hand order and settlement');
+  await fixture(['AS','9H','AD','7C','KH','5D','QC']);
+  await key('d');await key('p');
+  assert(await bank()===1200,'Split ace 21 pays 1:1');
+  assert(await page.locator('.split-badge').count()===2,'Split ace badges');
+  assert(await page.locator('#hit').isDisabled() && await page.locator('#split').isDisabled(),'Split aces auto-stand');
+  await page.locator('#rules-open').click();
+  assert((await page.locator('#rules-dialog').innerText()).includes('No insurance'),'Omitted rules documented');
+  await page.setViewportSize({width:360,height:800});
+  await page.screenshot({path:'output/playwright/mobile-rules.png',fullPage:true});
+  await page.keyboard.press('Escape');
+  assert(!await page.locator('#rules-dialog').isVisible(),'Native Escape closes modal');
+  await fixture(['10S','10H','8D','7C']);
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.locator('#deal').click();
+  const mid=await saved();
+  assert(mid.seq===1 && mid.bankroll===900,'Action saved before animation');
+  await page.keyboard.press('h');await page.keyboard.press('d');
+  assert((await saved()).seq===1,'Animation blocks repeated actions');
+  await page.reload();await idle();
+  assert(await bank()===900 && (await saved()).seq===1,'Mid-animation reload resumes final saved snapshot');
+  await key('s');
+  await fixture([],5);
+  await page.keyboard.press('r');await idle();
+  assert(await bank()===1000,'Keyboard reload restores bankroll');
+  const previousWager = Number(await page.locator('#bet-value').innerText());
   await page.locator('#bet').focus();
   await page.keyboard.press('ArrowRight');
-  assert(await page.locator('#bet-value').innerText() === '20', 'Keyboard wager increments by 10');
-  const focus = await page.locator('#bet').evaluate((node) => getComputedStyle(node).outlineWidth);
-  assert(parseFloat(focus) > 0, 'Visible keyboard focus');
-  await page.getByRole('button', { name: 'Bet 500 chips', exact: true }).click();
-
-  let sawHit = false;
-  let sawStand = false;
-  let sawHidden = false;
-  let sawReset = false;
-  let rounds = 0;
-  for (; rounds < 35; rounds += 1) {
-    const before = await bankroll();
-    const wager = Number(await page.locator('#bet-value').innerText());
-    await page.locator('#deal').click();
-    assert(await bankroll() === before - wager, 'Wager deducted at deal');
-    assert(await page.locator('#deal').isDisabled(), 'Double deal is blocked');
-    await page.waitForFunction(() => !document.querySelector('#hit').disabled || !document.querySelector('#new-round').disabled);
-    if (await page.locator('#hit').isEnabled()) {
-      sawHidden = true;
-      assert(await page.getByRole('img', { name: 'Face-down card', exact: true }).count() === 1, 'One hidden hole card');
-      assert(await page.locator('#dealer-total').innerText() === 'Hole card hidden', 'No dealer total leaks');
-      assert(await page.locator('#active-hand').isVisible(), 'Active hand indicator');
-      for (const id of ['deal', 'bet', 'new-round', 'reset']) {
-        assert(await page.locator(`#${id}`).isDisabled(), `${id} blocked during player turn`);
-      }
-      if (!sawHit) {
-        await page.screenshot({ path: 'output/playwright/desktop-play.png', fullPage: true });
-        await page.setViewportSize({ width: 360, height: 800 });
-        assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'No mobile overflow');
-        await page.screenshot({ path: 'output/playwright/mobile-play.png', fullPage: true });
-        const count = await page.locator('#player-cards .card').count();
-        await page.locator('#hit').click();
-        sawHit = true;
-        assert(await page.locator('#player-cards .card').count() === count + 1, 'Hit adds exactly one card');
-      }
-      if (await page.locator('#stand').isEnabled()) {
-        await page.locator('#stand').click();
-        sawStand = true;
-      }
-    }
-    await page.waitForFunction(() => !document.querySelector('#new-round').disabled);
-    assert(await page.getByRole('img', { name: 'Face-down card', exact: true }).count() === 0, 'Hole card revealed at round end');
-    const text = await page.locator('#outcome').innerText();
-    const result = text.match(/Profit: ([+\-\d,]+) chips · Stake returned: ([\d,]+) chips/);
-    assert(result !== null, 'Outcome reports profit and stake');
-    const profit = Number(result[1].replaceAll(',', ''));
-    const stake = Number(result[2].replaceAll(',', ''));
-    assert(await bankroll() === before - wager + stake + Math.max(0, profit), 'UI settlement accounting');
-    assert(await page.locator('#hit').isDisabled() && await page.locator('#stand').isDisabled(), 'Player actions blocked after settlement');
-    if (await bankroll() < 10) {
-      assert(await page.locator('#reset').isEnabled(), 'Reset enabled when broke');
-      await page.locator('#reset').click();
-      assert(await bankroll() === 1000, 'Reset restores bankroll');
-      assert(await page.locator('#deal').isEnabled(), 'Reset returns to betting');
-      sawReset = true;
-      break;
-    }
-    await page.locator('#new-round').click();
-    assert(await page.locator('#deal').isEnabled(), 'New round returns to betting');
-  }
-  await page.locator('.rules summary').click();
-  const rules = await page.locator('.rules').innerText();
-  for (const phrase of ['Six decks', '3:2', 'soft 17', '75%', 'No insurance', 'surrender']) {
-    assert(rules.includes(phrase), `Rules explain ${phrase}`);
-  }
-  await page.screenshot({ path: 'output/playwright/mobile-rules.png', fullPage: true });
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.screenshot({ path: 'output/playwright/desktop-rules.png', fullPage: true });
-  assert(sawHit && sawStand && sawHidden && sawReset, 'All essential UI flows covered');
-  assert(failures.length === 0, `Browser errors: ${failures.join('; ')}`);
-  console.log(JSON.stringify({ passed: true, rounds: rounds + 1, sawHit, sawStand, sawHidden, sawReset, browserErrors: failures }));
+  assert(Number(await page.locator('#bet-value').innerText())===previousWager+10,'Keyboard slider wager');
+  assert(await page.locator('#bet').evaluate((node)=>parseFloat(getComputedStyle(node).outlineWidth)>0),'Visible keyboard focus');
+  assert(errors.length===0,`Browser errors: ${errors.join('; ')}`);
+  console.log(JSON.stringify({passed:true,scenarios:['S16/DAS/exact resume','S19/four hands','S17/split aces',
+    'mid-animation reload','animation input lock','keyboard reset','keyboard wager','dialogs'],browserErrors:errors}));
 }

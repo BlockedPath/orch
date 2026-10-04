@@ -42,6 +42,11 @@ describe('Stage 1 scenarios through the Stage 2 API', () => {
     expect(requireRound(state).settlements?.[0]).toMatchObject({ profit: 15, stakeReturned: 10 });
     expect(maxBet(state.bankroll)).toBe(500);
   });
+  it('counts a player natural in statistics even when mutual naturals push', () => {
+    const state=deal(fixtures.mutualNaturals);
+    expect(state.stats).toMatchObject({naturals:1,pushes:1,wins:0,netProfit:0});
+    assertInvariants(state);
+  });
   it('hides the hole card in views and deal events, then reveals it at settlement', () => {
     const result = applyAction(createGame({ cards: fixtures.soft17 }), { type: 'DEAL', bet: 100 });
     if (!result.ok) throw new Error(result.error);

@@ -40,7 +40,23 @@
   - Status: COMPLETE. Engine, card deck/shoe, hand evaluator, S17, 3:2 natural, dealer peek, betting, basic UI table, and 38 Vitest unit/fixture tests passing. Production build verified.
 - **TASK-003-STAGE2-FULL**: Stage 2 Full Features Implementation.
   - Assigned: `coder` (`w4T:p2`, Codex GPT-6.1 Sol)
-  - Objective: Double Down, Split (up to 4 hands, rank matching, split ace 1-card limit, split 21 = 1:1, DAS), multi-hand settlements, localStorage persistence & stats, smooth card animations with reduced-motion support, keyboard shortcuts & visible focus, comprehensive fixture tests (Groups E, F, G, H / S12-S26).
-  - Status: In Progress
-- **TASK-004-VERIFICATION**: Parallel review (Opus 5.5 w4T:p6), adversarial review (Grok 4.7 w4T:p3), and independent testing (Pi w4T:p4).
-  - Status: Pending TASK-003-STAGE2-FULL.
+  - Status: COMPLETE. All 77 unit, fixture, persistence, and fuzz tests passing. Clean build (`dist/`). Frozen at commit `22e0849551f43225a151dd1b7672b122c370e950`.
+- **TASK-004-VERIFICATION-PRIMARY**: Independent Primary Code & Specification Review.
+  - Assigned: `reviewer` (`w4T:p6`, Claude Code)
+  - Target commit: `22e0849`
+  - Findings: Verified 16 independent custom probes passing; verified real headless Chrome layout rendering at 360px and 1440px; verified keyboard shortcuts and focus indicators. Identified Node 26 global webstorage shadowing in vitest config (resolved).
+  - Status: COMPLETE.
+- **TASK-004-VERIFICATION-ADVERSARIAL**: Adversarial Security, Rules, State Corruption & Exploit Review.
+  - Assigned: `adversary` (`w4T:p3`, Grok 4.7 xhigh)
+  - Target commit: `22e0849`
+  - Findings: Evaluated payout matrix, S17, split aces, 4-hand cap, phase guards, 300 automated rounds, and corrupt save quarantines. 0 blocking issues. Recommends tightening split-ace hit guard (applied) and refining broke banner wording (applied).
+  - Status: COMPLETE.
+- **TASK-004-VERIFICATION-TESTING**: Independent Test & Fixture Execution & Verification.
+  - Assigned: `tester` (`w4T:p4`, Pi Muse Spark 1.3 max)
+  - Target commit: `22e0849`
+  - Findings: Verified 24 scenario fixtures (S1–S14, S16–S22, S25, S26), T-BET, T-HAND, guard matrix, P1–P11, and 20,000-round fuzz test. Verified Node 26 `--no-experimental-webstorage` flag.
+  - Status: COMPLETE.
+- **TASK-005-INTEGRATION-DELIVERY**: Final Integration, Smoke Testing & Release Verification.
+  - Assigned: `coordinator` (`w4T:p5`, Gemini 3.8 Flash)
+  - Checks: 87/87 tests passing on Node 26, `npm run build` cleanly packaging production bundle in 60ms, preview server verified on `http://localhost:4173`, full house rules documented.
+  - Status: COMPLETE & READY FOR DELIVERY.

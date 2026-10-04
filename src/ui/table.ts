@@ -163,7 +163,7 @@ export function mountGame(options: {
       title = summary.outcomes.length === 1 && first ? titles[first]
         : summary.profit > 0 ? 'Round won.' : summary.profit < 0 ? 'Round lost.' : 'Round even.';
       message = `Profit: ${summary.profit > 0 ? '+' : ''}${format(summary.profit)} chips · Stake returned: ${format(summary.stakeReturned)} chips`;
-      if (view.bankroll < 10) message += ' · Start a New Round to reset your bankroll.';
+      if (view.bankroll < 10) message += ' · Start a New Round, then click Reset Bankroll.';
     } else if (view.bankroll < 10) { title = 'Time to reload.'; message = 'Reset your bankroll to get 1,000 play chips.'; }
     outcome.replaceChildren(textElement('strong', title), textElement('span', message));
     const stats: [keyof Statistics, string][] = [['rounds','Rounds'],['hands','Hands'],['wins','Won'],['losses','Lost'],
