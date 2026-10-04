@@ -19,7 +19,8 @@
         <div><button type="button" id="rules-open">House rules</button><button type="button" id="stats-open">Statistics</button></div>
       </nav>
       <p id="save-notice" class="save-notice" role="status" aria-live="polite"></p>
-      <div class="table">
+      <p id="card-announcements" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+      <div class="table" id="game-table">
         <section class="hand-area" aria-labelledby="dealer-heading">
           <div class="hand-heading"><h2 id="dealer-heading">Dealer</h2><span class="total" id="dealer-total">—</span></div>
           <div class="cards" id="dealer-cards" aria-label="Dealer cards"></div>
@@ -51,6 +52,7 @@
           <button type="button" id="split" aria-keyshortcuts="P">Split</button>
           <button type="button" id="new-round" class="primary" aria-keyshortcuts="N">New Round</button>
           <button type="button" id="reset" aria-keyshortcuts="R">Reset Bankroll</button>
+          <button type="button" id="skip-animation" aria-keyshortcuts="Space" hidden>Skip animation</button>
         </div>
         <p class="hint shortcuts">D Deal · H Hit · S Stand · 2/X Double · P Split · N New Round · R Reset</p>
         <p id="error" role="alert"></p>
@@ -63,6 +65,7 @@
             <li>Six decks. Aces count as 1 or 11; face cards count as 10.</li>
             <li>An unsplit two-card blackjack pays 3:2. Other wins pay 1:1. A tie returns your stake.</li>
             <li>The dealer checks for blackjack when showing an Ace or a ten-value card, before you play.</li>
+            <li>Because the dealer checks first, you never lose extra double or split wagers to a dealer blackjack.</li>
             <li>The dealer hits below 17 and stands on every 17, including soft 17. A player total of 21 automatically stands.</li>
             <li>Double Down on your first two cards, including after a non-ace split, if you can cover another equal wager. Receive exactly one card, then automatically stand. A doubled wager may exceed the 500-chip initial bet limit.</li>
             <li>Split identical ranks into separate hands with an extra equal wager. Resplit up to four hands. Play each hand in order. Cards with different ranks cannot split, even when both are worth 10.</li>

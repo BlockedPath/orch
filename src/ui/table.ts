@@ -16,6 +16,7 @@ const messages: Record<ErrorCode, string> = {
   MAX_HANDS: 'You can play up to four hands.', RELOAD_NOT_ALLOWED: 'Reset is available below 10 chips, before dealing.',
 };
 const format = (amount: number): string => amount.toLocaleString('en-US');
+const cardName = (card: Card): string => `${rankNames[card.rank] ?? card.rank} of ${card.suit}`;
 
 function element<T extends HTMLElement>(id: string, constructor: { new (): T }): T {
   const found = document.getElementById(id);
@@ -40,7 +41,7 @@ function cardElement(view: CardView): HTMLElement {
   } else {
     const card = view.card;
     if (card.suit === 'hearts' || card.suit === 'diamonds') node.classList.add('red');
-    node.setAttribute('aria-label', `${rankNames[card.rank] ?? card.rank} of ${card.suit}`);
+    node.setAttribute('aria-label', cardName(card));
     node.append(textElement('span', `${card.rank}\n${symbols[card.suit]}`, 'corner'),
       textElement('span', symbols[card.suit], 'pip'),
       textElement('span', `${card.rank}\n${symbols[card.suit]}`, 'corner bottom'));
@@ -72,6 +73,7 @@ export function mountGame(options: {
   let wager = Math.max(10, Math.min(state.lastBet ?? 10, selectView(state).maxBet));
   let busy = false;
   let generation = 0;
+  let finishAnimation: (() => void) | null = null;
   const cleanup: (() => void)[] = [];
   const bankroll = element('bankroll', HTMLElement);
   const bet = element('bet', HTMLInputElement);
@@ -84,6 +86,8 @@ export function mountGame(options: {
   const notice = element('save-notice', HTMLElement);
   const statsValues = element('stats-values', HTMLElement);
   const shoeStatus = element('shoe-status', HTMLElement);
+  const announcements = element('card-announcements', HTMLElement);
+  const skip = element('skip-animation', HTMLButtonElement);
   const rulesDialog = element('rules-dialog', HTMLDialogElement);
   const statsDialog = element('stats-dialog', HTMLDialogElement);
   const buttons = {
@@ -108,6 +112,7 @@ export function mountGame(options: {
     const view = selectView(state);
     const legal = view.legal;
     bankroll.textContent = format(view.bankroll);
+    skip.hidden = !busy;
     bet.max = String(Math.max(10, view.maxBet));
     bet.value = String(wager);
     betValue.textContent = format(wager);
@@ -153,7 +158,7 @@ export function mountGame(options: {
     if (!view.hands.length) hands.append(textElement('span', 'Waiting for the deal', 'card-placeholder'));
     let title = 'Take a seat.';
     let message = 'Choose your wager, then deal the cards.';
-    if (busy) { title = 'Cards in motion.'; message = 'Your move is saved. The cards are being dealt.'; }
+    if (busy) { title = 'Cards in motion.'; message = 'Press Space or tap the table to skip the animation.'; }
     else if (view.phase === 'PLAYER_TURN') {
       title = `Your move${view.hands.length > 1 ? ` · Hand ${(state.round?.activeHandIndex ?? 0) + 1}` : ''}.`;
       message = `Total ${view.hands.find((hand) => hand.isActive)?.value.total ?? ''}. Hit, stand, or use an available double or split.`;
@@ -194,7 +199,24 @@ export function mountGame(options: {
         delay += duration * 0.35;
       }
     }
-    await Promise.all(animations.map((animation)=>animation.finished.catch(()=>undefined)));
+    const token = generation;
+    const count = before.bankroll === after.bankroll ? Promise.resolve() : new Promise<void>((resolve) => {
+      const started = window.performance.now();
+      const update = (now: number): void => {
+        if (token !== generation || !busy) { resolve(); return; }
+        const progress = Math.min(1, (now - started) / duration);
+        bankroll.textContent = format(Math.round(before.bankroll + (after.bankroll - before.bankroll) * progress));
+        if (progress === 1) resolve(); else window.requestAnimationFrame(update);
+      };
+      bankroll.textContent = format(before.bankroll);
+      window.requestAnimationFrame(update);
+    });
+    await Promise.all([...animations.map((animation)=>animation.finished.catch(()=>undefined)), count]);
+  }
+  function skipAnimation(): void {
+    if (!busy) return;
+    for (const animation of document.getAnimations?.() ?? []) animation.finish();
+    finishAnimation?.();
   }
   async function dispatch(action: Action): Promise<void> {
     if (busy) return;
@@ -209,7 +231,11 @@ export function mountGame(options: {
       render();
       return;
     }
-    if (!saved.ok) notice.textContent = 'Progress not saved: browser storage is unavailable.';
+    if (!saved.ok && saved.reason === 'INVALID_STATE') {
+      error.textContent = 'This move failed table validation. Your previous saved table has been kept.';
+      return;
+    }
+    notice.textContent = saved.ok ? '' : 'Progress not saved: browser storage is unavailable.';
     state = result.state;
     if (action.type === 'NEW_ROUND' || action.type === 'RELOAD_BANKROLL') wager = Math.max(10,Math.min(state.lastBet ?? 10,selectView(state).maxBet));
     error.textContent = '';
@@ -218,11 +244,23 @@ export function mountGame(options: {
     busy = hasCards;
     const token = ++generation;
     render();
-    try { if (hasCards) await (options.animate ?? animate)(before,selectView(state),duration); }
+    try {
+      if (hasCards) {
+        const skipped = new Promise<void>((resolve) => { finishAnimation = resolve; });
+        await Promise.race([(options.animate ?? animate)(before,selectView(state),duration), skipped]);
+      }
+    }
     finally {
       if (token === generation) {
         busy = false;
+        finishAnimation = null;
         render();
+        announcements.textContent = result.events.map((event) => {
+          if (event.type === 'CARD_DEALT') return `${event.target === 'dealer' ? 'Dealer' : `Hand ${event.handIndex + 1}`} receives ${cardName(event.card)}.`;
+          if (event.type === 'HOLE_DEALT') return 'Dealer receives a face-down card.';
+          if (event.type === 'HOLE_REVEALED') return `Dealer reveals ${cardName(event.card)}.`;
+          return '';
+        }).filter(Boolean).join(' ');
         const active = document.activeElement;
         if (active instanceof HTMLButtonElement && active.disabled || !active || active === document.body) {
           Object.values(buttons).find((button)=>!button.disabled)?.focus({preventScroll:true});
@@ -236,6 +274,8 @@ export function mountGame(options: {
     [buttons.newRound,()=>({type:'NEW_ROUND'})],[buttons.reset,()=>({type:'RELOAD_BANKROLL'})],
   ];
   for (const [button, action] of actions) listen(button,'click',()=>{void dispatch(action());});
+  listen(skip, 'click', skipAnimation);
+  listen(element('game-table', HTMLElement), 'click', skipAnimation);
   listen(bet,'input',()=>{if(!busy && selectView(state).legal.deal) {wager=Number(bet.value);render();}});
   for(const chip of chips) listen(chip,'click',()=>{if(!chip.disabled) {wager=Number(chip.dataset.bet);render();}});
   for(const [dialog,openId,closeId] of [[rulesDialog,'rules-open','rules-close'],[statsDialog,'stats-open','stats-close']] as const) {
@@ -247,6 +287,7 @@ export function mountGame(options: {
     if(!(event instanceof KeyboardEvent) || event.repeat || event.altKey || event.ctrlKey || event.metaKey || rulesDialog.open || statsDialog.open) return;
     const target=event.target;
     if(target instanceof HTMLElement && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName))) return;
+    if (busy && event.key === ' ') { event.preventDefault(); skipAnimation(); return; }
     const button=shortcuts[event.key.toLowerCase()];
     if(button && !button.disabled) {event.preventDefault();button.click();}
   });
@@ -255,6 +296,8 @@ export function mountGame(options: {
     const newer=manager.adopt(event.newValue);
     if(newer) {
       generation+=1;
+      finishAnimation?.();
+      finishAnimation = null;
       for(const animation of document.getAnimations?.() ?? []) animation.cancel();
       busy=false;
       state=newer;
@@ -264,5 +307,5 @@ export function mountGame(options: {
     }
   });
   render();
-  return {destroy:()=>{generation+=1;for(const remove of cleanup) remove();}};
+  return {destroy:()=>{generation+=1;finishAnimation?.();finishAnimation=null;for(const remove of cleanup) remove();}};
 }

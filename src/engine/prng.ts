@@ -1,7 +1,10 @@
 import type { RandomSource, RngState } from './types';
+import { InvariantError } from './errors';
 
 export function seedRng(seed: number): RngState {
-  return { a: seed >>> 0, b: 0x9e3779b9, c: 0x243f6a88, d: 1 };
+  let rng: RngState = { a: seed >>> 0, b: 0x9e3779b9, c: 0x243f6a88, d: 1 };
+  for (let step = 0; step < 20; step += 1) rng = nextUint32(rng).rng;
+  return rng;
 }
 
 export function nextUint32(rng: RngState): { value: number; rng: RngState } {
@@ -13,7 +16,7 @@ export function nextUint32(rng: RngState): { value: number; rng: RngState } {
 }
 
 export function nextInt(rng: RngState, bound: number): { value: number; rng: RngState } {
-  if (!Number.isInteger(bound) || bound < 1 || bound > 4294967296) throw new Error('Invalid RNG bound.');
+  if (!Number.isInteger(bound) || bound < 1 || bound > 4294967296) throw new InvariantError('Invalid RNG bound.');
   const limit = 4294967296 - (4294967296 % bound);
   let current = rng;
   for (;;) {

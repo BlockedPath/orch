@@ -1,3 +1,4 @@
+import { InvariantError } from './errors';
 import { RANKS, SUITS } from './types';
 import { mulberry32, nextInt } from './prng';
 import type { Card, RandomSource, RngState, Shoe } from './types';
@@ -36,7 +37,7 @@ export function shuffle(cards: readonly Card[], random: RandomSource): Card[] {
   for (let i = shuffled.length - 1; i > 0; i -= 1) {
     const sample = random();
     if (!Number.isFinite(sample) || sample < 0 || sample >= 1) {
-      throw new Error('Random source must return a value in [0, 1).');
+      throw new InvariantError('Random source must return a value in [0, 1).');
     }
     const j = Math.floor(sample * (i + 1));
     const left = shuffled[i];
@@ -48,12 +49,12 @@ export function shuffle(cards: readonly Card[], random: RandomSource): Card[] {
 
 export function shoeFromCards(cards: readonly Card[]): Shoe {
   const ids = new Set(cards.map((card) => card.id));
-  if (ids.size !== cards.length) throw new Error('Fixture has duplicate physical cards.');
+  if (ids.size !== cards.length) throw new InvariantError('Fixture has duplicate physical cards.');
   return { cards: [...cards.map((card) => ({ ...card })), ...canonicalCards().filter((card) => !ids.has(card.id))], position: 0 };
 }
 
 export function draw(shoe: Shoe): { card: Card; shoe: Shoe } {
   const card = shoe.cards[shoe.position];
-  if (!card) throw new Error('Shoe exhausted. Inject more fixture cards.');
+  if (!card) throw new InvariantError('Shoe exhausted. Inject more fixture cards.');
   return { card, shoe: { ...shoe, position: shoe.position + 1 } };
 }

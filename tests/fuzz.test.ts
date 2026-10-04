@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { applyAction, createGame, getLegalActions } from '../src/engine/game';
 import { assertInvariants } from '../src/engine/invariants';
-import { mulberry32, nextInt, seedRng } from '../src/engine/prng';
+import { mulberry32, nextInt, nextUint32, seedRng } from '../src/engine/prng';
 import { deserialize, serialize } from '../src/engine/serialize';
 import { shuffledShoe } from '../src/engine/shoe';
-import type { Action } from '../src/engine/types';
+import type { Action, GameState } from '../src/engine/types';
 import { act } from './fixtures';
 
 describe('purity, shuffle, and invariant verification', () => {
@@ -17,10 +17,28 @@ describe('purity, shuffle, and invariant verification', () => {
   });
   it('has a stable seed golden shoe and uint32 rejection sampling', () => {
     expect(shuffledShoe(seedRng(42))).toEqual(shuffledShoe(seedRng(42)));
-    expect(shuffledShoe(seedRng(42)).shoe.cards.slice(0,8).map((card)=>card.id)).toEqual([89,133,77,285,112,31,305,188]);
+    expect(shuffledShoe(seedRng(42)).shoe.cards.slice(0,8).map((card)=>card.id)).toEqual([29,83,285,192,92,99,242,70]);
     const rejectionBoundaryRng={a:0xffffffff,b:0,c:0,d:0};
     expect(nextInt(rejectionBoundaryRng,3).value).toBe(1);
     expect(nextInt(rejectionBoundaryRng,3).rng.d).toBe(2);
+  });
+  it('mixes the seed before exposing the first RNG outputs', () => {
+    const secondOutputs=Array.from({length:32},(_,seed)=>nextUint32(nextUint32(seedRng(seed)).rng).value);
+    expect(new Set(secondOutputs).size).toBeGreaterThan(1);
+  });
+  it('distributes three-card Fisher–Yates permutations within 3 percent across 60,000 seeds', () => {
+    const counts=new Map<string,number>();
+    for(let seed=0;seed<60000;seed+=1) {
+      let rng=seedRng(seed);const order=[0,1,2];
+      for(let index=2;index>0;index-=1) {
+        const next=nextInt(rng,index+1);rng=next.rng;
+        const left=order[index];const right=order[next.value];
+        if(left!==undefined && right!==undefined) [order[index],order[next.value]]=[right,left];
+      }
+      const key=order.join(',');counts.set(key,(counts.get(key)??0)+1);
+    }
+    expect(counts.size).toBe(6);
+    for(const count of counts.values()) expect(Math.abs(count-10000)).toBeLessThanOrEqual(300);
   });
   it('20,000 seeded rounds preserve invariants and round-trip every accepted snapshot', () => {
     let state=createGame({seed:42});
@@ -28,9 +46,18 @@ describe('purity, shuffle, and invariant verification', () => {
     let shuffles=0;
     let doubles=0;
     let splits=0;
+    const checkedAction=(current:GameState,action:Action):GameState=>{
+      const next=act(current,action);
+      assertInvariants(next);
+      const encoded=serialize(next);const loaded=deserialize(encoded);
+      if(!loaded.ok || serialize(loaded.state)!==encoded) throw new Error('Snapshot round-trip failed.');
+      return next;
+    };
     for(let round=0;round<20000;round+=1) {
-      if(state.bankroll<10) state=act(state,{type:'RELOAD_BANKROLL'});
-      state=act(state,{type:'DEAL',bet:10});
+      if(state.bankroll<10) state=checkedAction(state,{type:'RELOAD_BANKROLL'});
+      const ceiling=Math.min(500,Math.floor(state.bankroll/10)*10);
+      const bet=(Math.floor(random()*(ceiling/10))+1)*10;
+      state=checkedAction(state,{type:'DEAL',bet});
       let step=0;
       while(state.phase==='PLAYER_TURN') {
         if(step++>100) throw new Error('Round did not converge.');
@@ -57,7 +84,7 @@ describe('purity, shuffle, and invariant verification', () => {
       }
       assertInvariants(state);
       const previous=state.shoe;
-      state=act(state,{type:'NEW_ROUND'});
+      state=checkedAction(state,{type:'NEW_ROUND'});
       if(previous.cards!==state.shoe.cards) shuffles+=1;
       assertInvariants(state);
     }

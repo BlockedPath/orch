@@ -2,8 +2,8 @@ import { evaluateHand } from './hand';
 import { canonicalCards, CUT_CARD_POSITION } from './shoe';
 import { validateBet } from './game';
 import type { GameState } from './types';
+import { InvariantError } from './errors';
 
-export class InvariantError extends Error {}
 function requireInvariant(condition: boolean, message: string): void {
   if (!condition) throw new InvariantError(message);
 }
@@ -36,6 +36,13 @@ export function assertInvariants(state: GameState): void {
   requireInvariant(validateBet(round.baseBet, round.bankrollAtStart) === null && nonnegative(round.bankrollAtStart), 'Invalid round wager.');
   requireInvariant(state.lastBet === round.baseBet && nonnegative(round.shoeStart) && round.shoeStart < CUT_CARD_POSITION, 'Invalid round start.');
   requireInvariant(round.dealer.cards.length >= 2 && !round.dealer.isSplit, 'Invalid dealer hand.');
+  const initialPlayer = state.shoe.cards[round.shoeStart];
+  const secondPlayer = state.shoe.cards[round.shoeStart + 2];
+  requireInvariant(round.dealer.cards[0]?.id === state.shoe.cards[round.shoeStart + 1]?.id
+    && round.dealer.cards[1]?.id === state.shoe.cards[round.shoeStart + 3]?.id
+    && round.hands[0]?.cards[0]?.id === initialPlayer?.id, 'Opening deal order disagrees.');
+  requireInvariant(round.hands.length === 1 ? round.hands[0]?.cards[1]?.id === secondPlayer?.id
+    : initialPlayer?.rank === secondPlayer?.rank, 'Invalid initial player hand.');
   const table = [...round.hands.flatMap((hand) => hand.cards), ...round.dealer.cards];
   const dealt = state.shoe.cards.slice(round.shoeStart, state.shoe.position);
   requireInvariant(table.length === dealt.length && new Set(table.map((card) => card.id)).size === table.length, 'Table card count disagrees.');
@@ -47,16 +54,26 @@ export function assertInvariants(state: GameState): void {
   for (const hand of round.hands) {
     requireInvariant(hand.isSplit === (round.hands.length > 1), 'Invalid split flag.');
     requireInvariant(hand.wager === round.baseBet * (hand.doubled ? 2 : 1), 'Invalid hand wager.');
-    requireInvariant(!hand.doubled || hand.cards.length === 3, 'Invalid doubled hand.');
-    requireInvariant(!hand.splitAces || (hand.isSplit && hand.cards[0]?.rank === 'A' && hand.cards.length === 2 && !hand.doubled), 'Invalid split aces.');
+    requireInvariant(!hand.doubled || (hand.cards.length === 3 && (hand.status === 'STOOD' || hand.status === 'BUST')), 'Invalid doubled hand.');
+    requireInvariant(!hand.isSplit || hand.cards[0]?.rank === initialPlayer?.rank, 'Split rank disagrees with opening pair.');
+    requireInvariant(hand.splitAces === (hand.isSplit && initialPlayer?.rank === 'A'), 'Invalid split-ace provenance.');
+    requireInvariant(!hand.splitAces || (round.hands.length === 2 && hand.cards.length === 2
+      && !hand.doubled && hand.status === 'STOOD'), 'Invalid split aces.');
     requireInvariant(hand.status === 'BUST' ? evaluateHand(hand).isBust : !evaluateHand(hand).isBust, 'Hand status disagrees with total.');
+    for (let length = 2; length < hand.cards.length; length += 1) {
+      requireInvariant(evaluateHand({ ...hand, cards: hand.cards.slice(0, length) }).total < 21, 'Player drew after an auto-resolved total.');
+    }
   }
+  requireInvariant(stats.doubles >= round.hands.filter((hand) => hand.doubled).length
+    && stats.splits >= round.hands.length - 1 && stats.peakBankroll >= round.bankrollAtStart, 'Round statistics disagree.');
   if (state.phase === 'PLAYER_TURN') {
-    requireInvariant(!round.holeRevealed && round.dealer.cards.length === 2 && round.settlements === null && round.endReason === null, 'Invalid player phase.');
+    requireInvariant(!round.holeRevealed && round.dealer.cards.length === 2 && round.settlements === null
+      && round.endReason === null && !evaluateHand(round.dealer).isBlackjack, 'Invalid player phase.');
     requireInvariant(state.bankroll === round.bankrollAtStart - wager, 'Player bankroll disagrees with stakes.');
     round.hands.forEach((hand, index) => {
       const valid = index < round.activeHandIndex ? hand.status === 'STOOD' || hand.status === 'BUST'
-        : index === round.activeHandIndex ? hand.status === 'ACTIVE' && hand.cards.length >= 2 && evaluateHand(hand).total < 21
+        : index === round.activeHandIndex ? hand.status === 'ACTIVE' && hand.cards.length >= 2
+          && !hand.doubled && !hand.splitAces && evaluateHand(hand).total < 21
         : hand.status === 'PENDING' && hand.cards.length === 1;
       requireInvariant(valid, 'Invalid active hand sequence.');
     });
@@ -82,6 +99,15 @@ export function assertInvariants(state: GameState): void {
   });
   requireInvariant(state.bankroll === round.bankrollAtStart - wager + settlements.reduce((sum, item) => sum + item.stakeReturned + item.winnings, 0), 'Settled bankroll disagrees.');
   const dealer = evaluateHand(round.dealer);
+  const expectedEnd = dealer.isBlackjack ? 'DEALER_BLACKJACK'
+    : round.hands.some((hand) => evaluateHand(hand).isBlackjack) ? 'PLAYER_BLACKJACK'
+    : round.hands.every((hand) => evaluateHand(hand).isBust) ? 'ALL_BUST' : 'SHOWDOWN';
+  requireInvariant(round.endReason === expectedEnd, 'Round end reason disagrees.');
+  requireInvariant(stats.rounds >= 1 && stats.hands >= round.hands.length && stats.totalWagered >= wager
+    && stats.wins >= settlements.filter((item) => item.outcome === 'WIN' || item.outcome === 'BLACKJACK').length
+    && stats.losses >= settlements.filter((item) => item.outcome === 'LOSS' || item.outcome === 'BUST').length
+    && stats.pushes >= settlements.filter((item) => item.outcome === 'PUSH').length
+    && stats.naturals >= round.hands.filter((hand) => evaluateHand(hand).isBlackjack).length, 'Settled statistics disagree.');
   if (round.endReason === 'SHOWDOWN') {
     requireInvariant(dealer.total >= 17, 'Dealer stopped below 17.');
     for (let length = 2; length < round.dealer.cards.length; length += 1) {

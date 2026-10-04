@@ -11,6 +11,9 @@ describe('hand evaluation', () => {
     [['A', 'A', 'A', '8'], 21, true],
     [['A', '6'], 17, true],
     [['A', '6', 'K'], 17, false],
+    [['A', 'A', 'K'], 12, false],
+    [['5', 'A', '9'], 15, false],
+    [['A', 'A', 'A', 'A', '7'], 21, true],
     [['K', 'Q', '2'], 22, false],
   ])('%j totals %i (soft: %s)', (ranks, total, isSoft) => {
     expect(evaluateHand({ cards: cards(...ranks), isSplit: false })).toMatchObject({ total, isSoft, isBust: total > 21 });

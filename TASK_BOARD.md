@@ -60,3 +60,10 @@
   - Assigned: `coordinator` (`w4T:p5`, Gemini 3.8 Flash)
   - Checks: 87/87 tests passing on Node 26, `npm run build` cleanly packaging production bundle in 60ms, preview server verified on `http://localhost:4173`, full house rules documented.
   - Status: COMPLETE & READY FOR DELIVERY.
+
+- **TASK-006-REVIEW-FIXES-DEPLOY**: Fix consolidated primary-reviewer and tester findings, re-verify, and deploy.
+  - Assigned: `coder` (`w4T:p2`), with primary review by `w4T:p6` and testing by `w4T:p4` and `w4T:p7`.
+  - Review follow-up on `593877f`: all three confirmed malformed-save gaps. The primary reviewer also retained non-blocking findings for PRNG warm-up, missing/corrupt save-key recovery, rules text, stale notices, animation skip, and terminal-capture documentation.
+  - Fixes: validate doubled/split-ace statuses and provenance, unresolved naturals, opening card order, prior auto-resolved totals, settlement end reasons, and outgoing snapshots. Preserve valid exact resume, retries, and stale-tab protection. Recover deleted/corrupt keys, mix fresh seeds, clear notices, add animation skip and bankroll count-up, normalize InvariantError, update rules, and clean docs.
+  - Checks: 104 tests and production build passing; all three exact `w4T:p7` saved repros now reject at first load. Historical test counts: 85 at `22e0849`, 87 at `593877f`.
+  - Status: Fixes implemented; final independent verification and deployment pending.

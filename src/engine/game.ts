@@ -1,3 +1,4 @@
+import { InvariantError } from './errors';
 import { cardValue, evaluateHand } from './hand';
 import { seedRng } from './prng';
 import { CUT_CARD_POSITION, draw, shoeFromCards, shuffledShoe } from './shoe';
@@ -37,7 +38,7 @@ export function getLegalActions(state: GameState) {
     : state.bankroll < hand.wager ? 'INSUFFICIENT_FUNDS' : null;
   return {
     deal: state.phase === 'BETTING' && state.bankroll >= MIN_BET ? { min: MIN_BET, max: maxBet(state.bankroll), step: 10 } : null,
-    hit: player && !hand?.splitAces, stand: player,
+    hit: player, stand: player,
     double: { allowed: doubleReason === null, reason: doubleReason },
     split: { allowed: splitReason === null, reason: splitReason },
     newRound: state.phase === 'ROUND_OVER', reload: state.phase === 'BETTING' && state.bankroll < MIN_BET,
@@ -105,19 +106,19 @@ export function applyAction(state: GameState, input: unknown): ActionResult {
   }
   function takePlayerCard(index: number): void {
     const hand = round.hands[index];
-    if (!hand) throw new Error('Invariant: missing player hand.');
+    if (!hand) throw new InvariantError('Invariant: missing player hand.');
     round.hands[index] = { ...hand, cards: [...hand.cards, drawCard('player', index)] };
   }
   function setStatus(index: number, status: PlayerHand['status']): void {
     const hand = round.hands[index];
-    if (!hand) throw new Error('Invariant: missing player hand.');
+    if (!hand) throw new InvariantError('Invariant: missing player hand.');
     round.hands[index] = { ...hand, status };
   }
   function reveal(): void {
     if (round.holeRevealed) return;
     round.holeRevealed = true;
     const card = round.dealer.cards[1];
-    if (!card) throw new Error('Invariant: missing hole card.');
+    if (!card) throw new InvariantError('Invariant: missing hole card.');
     events.push({ type: 'HOLE_REVEALED', card });
   }
   function finish(): void {
@@ -161,9 +162,9 @@ export function applyAction(state: GameState, input: unknown): ActionResult {
   function activateFrom(start: number): void {
     for (let index = start; index < round.hands.length; index += 1) {
       let hand = round.hands[index];
-      if (!hand) throw new Error('Invariant: missing player hand.');
+      if (!hand) throw new InvariantError('Invariant: missing player hand.');
       if (hand.cards.length === 1) { takePlayerCard(index); hand = round.hands[index]; }
-      if (!hand) throw new Error('Invariant: missing player hand.');
+      if (!hand) throw new InvariantError('Invariant: missing player hand.');
       const value = evaluateHand(hand);
       if (hand.splitAces || value.total === 21 || value.isBust) {
         setStatus(index, value.isBust ? 'BUST' : 'STOOD');
@@ -194,13 +195,12 @@ export function applyAction(state: GameState, input: unknown): ActionResult {
   } else {
     const index = round.activeHandIndex;
     const hand = round.hands[index];
-    if (!hand) throw new Error('Invariant: missing active hand.');
+    if (!hand) throw new InvariantError('Invariant: missing active hand.');
     switch (action.type) {
       case 'HIT': {
-        if (hand.splitAces) return reject(state, 'ILLEGAL_PHASE');
         takePlayerCard(index);
         const hit = round.hands[index];
-        if (!hit) throw new Error('Invariant: missing hit hand.');
+        if (!hit) throw new InvariantError('Invariant: missing hit hand.');
         const value = evaluateHand(hit);
         if (value.isBust || value.total === 21) {
           setStatus(index, value.isBust ? 'BUST' : 'STOOD');
@@ -221,7 +221,7 @@ export function applyAction(state: GameState, input: unknown): ActionResult {
       case 'SPLIT': {
         const first = hand.cards[0];
         const second = hand.cards[1];
-        if (!first || !second) throw new Error('Invariant: split requires two cards.');
+        if (!first || !second) throw new InvariantError('Invariant: split requires two cards.');
         bankroll -= hand.wager;
         const splitAces = first.rank === 'A';
         const common = { isSplit: true, splitAces, doubled: false, wager: round.baseBet, status: 'PENDING' } satisfies Omit<PlayerHand, 'cards'>;

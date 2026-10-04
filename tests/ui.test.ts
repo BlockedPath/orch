@@ -150,4 +150,23 @@ describe('UI controller and persistence boundary',()=>{
     await click('stats-close');
     expect(document.querySelector('#stats-dialog[open]')).toBeNull();
   });
+  it('Space skips animation without dispatching another move',async()=>{
+    const store=new MemoryStore();
+    destroy=mountGame({store,fresh:()=>createGame({cards:source}),reducedMotion:()=>false,
+      animate:()=>new Promise<void>(()=>{})}).destroy;
+    button('deal').click();
+    expect(button('stand').disabled).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true}));
+    await vi.waitFor(()=>expect(button('stand').disabled).toBe(false),{timeout:100});
+    const saved=readSave(store.get(SAVE_KEY)??'');
+    expect(saved.ok && saved.state.seq).toBe(1);
+  });
+  it('clears the unavailable notice after storage recovers',async()=>{
+    const store=new MemoryStore();store.fail=true;
+    destroy=mountGame({store,fresh:()=>createGame({cards:source}),reducedMotion:()=>true}).destroy;
+    expect(document.getElementById('save-notice')?.textContent).toContain('Progress not saved');
+    store.fail=false;
+    await click('deal');
+    expect(document.getElementById('save-notice')?.textContent).toBe('');
+  });
 });

@@ -89,6 +89,11 @@ async (page) => {
   assert(mid.seq===1 && mid.bankroll===900,'Action saved before animation');
   await page.keyboard.press('h');await page.keyboard.press('d');
   assert((await saved()).seq===1,'Animation blocks repeated actions');
+  await page.keyboard.press('Space');await idle();
+  assert((await saved()).seq===1 && await bank()===900,'Skipping animation never dispatches another move');
+  assert(await page.locator('#skip-animation').isHidden(),'Skip control hides after animation');
+  await fixture(['10S','10H','8D','7C']);
+  await page.locator('#deal').click();
   await page.reload();await idle();
   assert(await bank()===900 && (await saved()).seq===1,'Mid-animation reload resumes final saved snapshot');
   await key('s');
@@ -102,5 +107,5 @@ async (page) => {
   assert(await page.locator('#bet').evaluate((node)=>parseFloat(getComputedStyle(node).outlineWidth)>0),'Visible keyboard focus');
   assert(errors.length===0,`Browser errors: ${errors.join('; ')}`);
   console.log(JSON.stringify({passed:true,scenarios:['S16/DAS/exact resume','S19/four hands','S17/split aces',
-    'mid-animation reload','animation input lock','keyboard reset','keyboard wager','dialogs'],browserErrors:errors}));
+    'mid-animation reload','animation input lock','Space animation skip','keyboard reset','keyboard wager','dialogs'],browserErrors:errors}));
 }

@@ -76,6 +76,7 @@ describe('Stage 1 scenarios through the Stage 2 API', () => {
     expect(reloaded.stats.reloads).toBe(1);
     expect(getLegalActions(broke).deal).toBeNull();
     expect(applyAction({...state, bankroll:10}, {type:'RELOAD_BANKROLL'})).toMatchObject({error:'RELOAD_NOT_ALLOWED'});
+    expect(validateBet(510,300)).toBe('INVALID_BET');
   });
   it('reshuffles on NEW_ROUND at 234 and preserves the shoe at 233', () => {
     const over = deal(fixtures.natural);
