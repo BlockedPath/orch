@@ -84,12 +84,20 @@ async (page) => {
   assert(!await page.locator('#rules-dialog').isVisible(),'Native Escape closes modal');
   await fixture(['10S','10H','8D','7C']);
   await page.emulateMedia({reducedMotion:'no-preference'});
-  await page.locator('#deal').click();
-  const mid=await saved();
-  assert(mid.seq===1 && mid.bankroll===900,'Action saved before animation');
-  await page.keyboard.press('h');await page.keyboard.press('d');
-  assert((await saved()).seq===1,'Animation blocks repeated actions');
-  await page.keyboard.press('Space');await idle();
+  const animationCheck=await page.evaluate(()=>{
+    document.getElementById('deal').click();
+    const read=()=>JSON.parse(localStorage.getItem('blackjack.save.v1')).state;
+    const first=read();
+    const locked=document.getElementById('hit').disabled && document.getElementById('deal').disabled;
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'h',bubbles:true}));
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'d',bubbles:true}));
+    const afterRepeated=read();
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true}));
+    return {seq:first.seq,bankroll:first.bankroll,locked,afterRepeatedSeq:afterRepeated.seq};
+  });
+  assert(animationCheck.seq===1 && animationCheck.bankroll===900,'Action saved before animation');
+  assert(animationCheck.locked && animationCheck.afterRepeatedSeq===1,'Animation blocks repeated actions');
+  await idle();
   assert((await saved()).seq===1 && await bank()===900,'Skipping animation never dispatches another move');
   assert(await page.locator('#skip-animation').isHidden(),'Skip control hides after animation');
   await fixture(['10S','10H','8D','7C']);
