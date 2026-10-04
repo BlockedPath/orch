@@ -88,6 +88,7 @@ export function mountGame(options: {
   const shoeStatus = element('shoe-status', HTMLElement);
   const announcements = element('card-announcements', HTMLElement);
   const skip = element('skip-animation', HTMLButtonElement);
+  const table = element('game-table', HTMLElement);
   const rulesDialog = element('rules-dialog', HTMLDialogElement);
   const statsDialog = element('stats-dialog', HTMLDialogElement);
   const buttons = {
@@ -204,7 +205,7 @@ export function mountGame(options: {
       const started = window.performance.now();
       const update = (now: number): void => {
         if (token !== generation || !busy) { resolve(); return; }
-        const progress = Math.min(1, (now - started) / duration);
+        const progress = Math.max(0, Math.min(1, (now - started) / duration));
         bankroll.textContent = format(Math.round(before.bankroll + (after.bankroll - before.bankroll) * progress));
         if (progress === 1) resolve(); else window.requestAnimationFrame(update);
       };
@@ -262,7 +263,9 @@ export function mountGame(options: {
           return '';
         }).filter(Boolean).join(' ');
         const active = document.activeElement;
-        if (active instanceof HTMLButtonElement && active.disabled || !active || active === document.body) {
+        if (hasCards && !rulesDialog.open && !statsDialog.open) {
+          table.focus({preventScroll:true});
+        } else if (active instanceof HTMLButtonElement && active.disabled || !active || active === document.body) {
           Object.values(buttons).find((button)=>!button.disabled)?.focus({preventScroll:true});
         }
       }
@@ -275,7 +278,7 @@ export function mountGame(options: {
   ];
   for (const [button, action] of actions) listen(button,'click',()=>{void dispatch(action());});
   listen(skip, 'click', skipAnimation);
-  listen(element('game-table', HTMLElement), 'click', skipAnimation);
+  listen(table, 'click', skipAnimation);
   listen(bet,'input',()=>{if(!busy && selectView(state).legal.deal) {wager=Number(bet.value);render();}});
   for(const chip of chips) listen(chip,'click',()=>{if(!chip.disabled) {wager=Number(chip.dataset.bet);render();}});
   for(const [dialog,openId,closeId] of [[rulesDialog,'rules-open','rules-close'],[statsDialog,'stats-open','stats-close']] as const) {
@@ -288,6 +291,7 @@ export function mountGame(options: {
     const target=event.target;
     if(target instanceof HTMLElement && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName))) return;
     if (busy && event.key === ' ') { event.preventDefault(); skipAnimation(); return; }
+    if (event.key === ' ' && target === table) { event.preventDefault(); return; }
     const button=shortcuts[event.key.toLowerCase()];
     if(button && !button.disabled) {event.preventDefault();button.click();}
   });

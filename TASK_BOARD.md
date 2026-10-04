@@ -67,3 +67,4 @@
   - Fixes: validate doubled/split-ace statuses and provenance, unresolved naturals, opening card order, prior auto-resolved totals, settlement end reasons, and outgoing snapshots. Preserve valid exact resume, retries, and stale-tab protection. Recover deleted/corrupt keys, mix fresh seeds, clear notices, add animation skip and bankroll count-up, normalize InvariantError, update rules, and clean docs.
   - Checks: 104 tests and production build passing; all three exact `w4T:p7` saved repros now reject at first load. Historical test counts: 85 at `22e0849`, 87 at `593877f`.
   - Status: Fixes implemented; final independent verification and deployment pending.
+  - Additional final-review fixes: animation completion focuses the neutral table so late/repeated Space does not hit; bankroll interpolation clamps at zero; every non-pending hand requires at least two cards. Failing-before focus and one-card regressions now pass. Suite: 107 tests; build clean.

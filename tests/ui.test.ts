@@ -158,6 +158,7 @@ describe('UI controller and persistence boundary',()=>{
     expect(button('stand').disabled).toBe(true);
     document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true}));
     await vi.waitFor(()=>expect(button('stand').disabled).toBe(false),{timeout:100});
+    expect(document.activeElement?.id).toBe('game-table');
     const saved=readSave(store.get(SAVE_KEY)??'');
     expect(saved.ok && saved.state.seq).toBe(1);
   });

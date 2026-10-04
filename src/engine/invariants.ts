@@ -52,6 +52,7 @@ export function assertInvariants(state: GameState): void {
   }
   const wager = round.hands.reduce((sum, hand) => sum + hand.wager, 0);
   for (const hand of round.hands) {
+    requireInvariant(hand.status === 'PENDING' ? hand.cards.length === 1 : hand.cards.length >= 2, 'Invalid hand card count.');
     requireInvariant(hand.isSplit === (round.hands.length > 1), 'Invalid split flag.');
     requireInvariant(hand.wager === round.baseBet * (hand.doubled ? 2 : 1), 'Invalid hand wager.');
     requireInvariant(!hand.doubled || (hand.cards.length === 3 && (hand.status === 'STOOD' || hand.status === 'BUST')), 'Invalid doubled hand.');

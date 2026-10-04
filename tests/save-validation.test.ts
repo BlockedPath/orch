@@ -32,6 +32,15 @@ function unfinishedNatural(dealer: boolean): GameState {
     shoe:dealer ? state.shoe : dealt.shoe,round:{...round,activeHandIndex:0,holeRevealed:false,endReason:null,settlements:null,
       hands:[{...hand,status:'ACTIVE',cards:dealer ? hand.cards : [...hand.cards,dealt.card]}]}};
 }
+function oneCardStood(): GameState {
+  const state=act(deal(cards('8','10','8','7','3')),{type:'SPLIT'});
+  const round=requireRound(state);const first=round.hands[0];const second=round.hands[1];
+  if(!first || !second || !first.cards[0] || !first.cards[1]) throw new Error('Missing split fixture');
+  return {...state,phase:'PLAYER_TURN',round:{...round,activeHandIndex:1,hands:[
+    {...first,status:'STOOD',cards:[first.cards[0]]},
+    {...second,status:'ACTIVE',cards:[...second.cards,first.cards[1]]},
+  ]}};
+}
 const envelope=(state:GameState)=>JSON.stringify({schemaVersion:1,savedAt:'now',state});
 
 describe('review regressions: reachable saved states',()=>{
@@ -41,6 +50,7 @@ describe('review regressions: reachable saved states',()=>{
     ['missing split-ace flag',activeAce(true)],
     ['unresolved dealer blackjack',unfinishedNatural(true)],
     ['hit after initial player natural',unfinishedNatural(false)],
+    ['one-card stood split hand',oneCardStood()],
   ])('quarantines %s at the initial load',(_name,state)=>{
     const raw=envelope(state);
     const store=new MemoryStore();store.set(SAVE_KEY,raw);

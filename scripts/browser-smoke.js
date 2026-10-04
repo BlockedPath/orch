@@ -99,6 +99,8 @@ async (page) => {
   assert(animationCheck.locked && animationCheck.afterRepeatedSeq===1,'Animation blocks repeated actions');
   await idle();
   assert((await saved()).seq===1 && await bank()===900,'Skipping animation never dispatches another move');
+  await page.keyboard.press('Space');await page.keyboard.press('Space');
+  assert((await saved()).seq===1,'Late or repeated Space cannot trigger an accidental hit');
   assert(await page.locator('#skip-animation').isHidden(),'Skip control hides after animation');
   await fixture(['10S','10H','8D','7C']);
   await page.locator('#deal').click();
